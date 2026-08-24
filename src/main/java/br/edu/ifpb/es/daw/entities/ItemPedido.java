@@ -1,23 +1,14 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.math.BigDecimal;
 import java.util.Objects;
 
-@Entity
-@Table(name = "item_pedido")
 public class ItemPedido {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_item_pedido")
     private Long id;
 
-    @Column(name = "preco_unitario", nullable = false, precision = 10, scale = 2)
     private BigDecimal precoUnitario;
 
-    @Column(nullable = false)
     private Integer quantidade;
 
     public ItemPedido() {

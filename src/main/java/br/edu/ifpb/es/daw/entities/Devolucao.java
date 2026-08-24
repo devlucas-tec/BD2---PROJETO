@@ -1,34 +1,22 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-@Entity
-@Table(name = "devolucao")
 public class Devolucao {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_devolucao")
     private Long id;
 
-    @Column(name = "data_devolucao", insertable = false, updatable = false)
     private LocalDateTime dataDevolucao;
 
-    @Column(nullable = false, length = 1000)
     private String motivo;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20, nullable = false)
     private StatusDevolucao status = StatusDevolucao.APROVADA;
 
     public Devolucao() {
     }
 
-    @PrePersist
-    protected void onCreate() {
+    public void onCreate() {
         this.dataDevolucao = LocalDateTime.now();
     }
 

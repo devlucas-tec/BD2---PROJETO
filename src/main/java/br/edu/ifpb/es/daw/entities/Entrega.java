@@ -1,32 +1,20 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-@Entity
-@Table(name = "entrega")
 public class Entrega {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_entrega")
     private Long id;
 
-    @Column(length = 50)
     private String transportadora;
 
-    @Column(name = "codigo_rastreamento", length = 50, unique = true)
     private String codigoRastreamento;
 
-    @Column(name = "status_entrega", nullable = false)
     private StatusEntrega statusEntrega;
 
-    @Column(name = "data_envio")
     private LocalDateTime dataEnvio;
 
-    @Column(name = "data_entrega_prevista")
     private LocalDateTime dataEntregaPrevista;
 
     public Entrega() {

@@ -1,34 +1,22 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-@Entity
-@Table(name = "pagamento")
 public class Pagamento {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_pagamento")
     private Long id;
 
-    @Column(length = 50, nullable = false)
     private MetodoPagamento metodo;
 
-    @Column(length = 50, nullable = false)
     private StatusPagamento status;
 
-    @Column(name = "valor_pago", precision = 10, scale = 2, nullable = false)
     private BigDecimal valorPago;
 
-    @Column(name = "data_pagamento", nullable = false)
     private LocalDateTime dataPagamento;
 
-    @PrePersist
-    protected void onCreate() {
+    public void onCreate() {
         this.dataPagamento = LocalDateTime.now();
     }
 

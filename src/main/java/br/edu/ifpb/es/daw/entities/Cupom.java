@@ -1,31 +1,20 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Objects;
 
-@Entity
-@Table(name = "cupom")
 public class Cupom {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_cupom")
     private Long id;
 
-    @Column(length = 20, unique = true, nullable = false)
     private String codigo;
 
-    @Column(name = "valor_desconto", precision = 10, scale = 2, nullable = false)
     private BigDecimal valorDesconto;
 
-    @Column(name = "data_expiracao")
     private LocalDate dataExpiracao;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20)
     private StatusCupom status = StatusCupom.ATIVO;
 
     public Cupom() {

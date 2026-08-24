@@ -1,22 +1,13 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.util.Objects;
 
-@Entity
-@Table(name = "categoria")
 public class Categoria {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_categoria")
     private Long id;
 
-    @Column(length = 50, unique = true, nullable = false)
     private String nome;
 
-    @Column(length = 350)
     private String descricao; 
 
     public Categoria() {
