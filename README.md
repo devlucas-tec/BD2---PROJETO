@@ -15,6 +15,15 @@ O objetivo desta etapa é realizar o Mapeamento Objeto-Relacional (ORM) de um mo
 
 ---
 
+## 🔧 Configuração do Banco (Supabase)
+
+1. Crie um projeto no Supabase.
+2. No SQL Editor, execute o script do arquivo `sql/01_grants_app_ecommerce.sql`.
+3. Obtenha a connection string em `Project Settings > Database > Connection Pooling` (Porta 6543).
+4. Configure suas credenciais locais em `persistence.xml` (não comite senhas em produção).
+
+---
+
 ## 🏗️ Estrutura e Padrões Implementados
 
 ### 1. Camada de Modelo (Entities)
