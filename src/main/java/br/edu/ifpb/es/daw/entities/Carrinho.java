@@ -1,32 +1,22 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDate;
 import java.util.Objects;
 
-@Entity
-@Table(name = "carrinho")
 public class Carrinho {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
 
-    @Column(name = "data_criacao", nullable = false, updatable = false)
     private LocalDate dataCriacao;
 
-    @Column(name = "data_ultima_atualizacao", nullable = false)
     private LocalDate dataAtualizacao;
 
-    @PrePersist
-    protected void onCreate() {
+    public void onCreate() {
         this.dataCriacao = LocalDate.now();
         this.dataAtualizacao = LocalDate.now();
     }
 
-    @PreUpdate
-    protected void ondUpdate() {
+    public void ondUpdate() {
         this.dataAtualizacao = LocalDate.now();
     }
 

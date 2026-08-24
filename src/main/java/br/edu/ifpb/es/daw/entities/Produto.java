@@ -1,46 +1,31 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-@Entity
-@Table(name = "produto")
 public class Produto {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_produto")
     private Long id;
 
-    @Column(length = 150, nullable = false)
     private String nome;
 
-    @Column(length = 500)
     private String descricao;
 
-    @Column(nullable = false)
     private Integer estoque;
 
-    @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal preco;
 
-    @Column(name = "data_cadastro", nullable = false, updatable = false)
     private LocalDateTime dataCadastro;
 
-    @Column(name = "data_atualizacao", nullable = false)
     private LocalDateTime dataAtualizacao;
 
-    @PrePersist
-    protected void onCreate() {
+    public void onCreate() {
         this.dataCadastro = LocalDateTime.now();
         this.dataAtualizacao = LocalDateTime.now();
     }
 
-    @PreUpdate
-    protected void onUpdate() {
+    public void onUpdate() {
         this.dataAtualizacao = LocalDateTime.now();
     }
 

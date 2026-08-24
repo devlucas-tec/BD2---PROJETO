@@ -50,3 +50,8 @@ buildNumber.properties
 
 ### Intellij ###
 .idea/
+
+# Credenciais e configuração local
+.env
+.env.local
+*.env

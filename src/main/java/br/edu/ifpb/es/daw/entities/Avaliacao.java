@@ -1,30 +1,25 @@
 package br.edu.ifpb.es.daw.entities;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-@Entity
-@Table
+
 public class Avaliacao {
 
-    @Id
-    @GeneratedValue( strategy = GenerationType.SEQUENCE)
-    @Column(name = "id_avaliacao")
+
     private Long id;
 
-    @Column(nullable = false)
+
     private Integer nota;
 
-    @Column(length = 350)
+
     private String comentario;
 
-    @Column(name = "data_avaliacao", nullable = false)
+
     private LocalDateTime dataAvaliacao;
 
-    @PrePersist
-    protected void onCreate() {
+
+    public void onCreate() {
         this.dataAvaliacao = LocalDateTime.now();
     }
 
