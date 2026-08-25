@@ -1,64 +1,106 @@
 package br.edu.ifpb.es.daw.dao.impl;
 
 import br.edu.ifpb.es.daw.dao.ClienteDAO;
+import br.edu.ifpb.es.daw.dao.RowMapper;
 import br.edu.ifpb.es.daw.dao.TransactionalDataAccess;
 import br.edu.ifpb.es.daw.entities.Cliente;
 
-import java.sql.*;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
 public class ClienteDAOImpl extends AbstractDAOImpl<Cliente> implements ClienteDAO {
 
-    @Override
-    public void save(Cliente cliente) {
-        String sql = """
-            INSERT INTO cliente (nome, email, senha_hash, telefone, data_cadastro, data_atualizacao)
-            VALUES (?, ?, ?, ?, ?, ?)
+    private static final RowMapper<Cliente> CLIENTE_MAPPER = rs -> {
+        Cliente c = new Cliente();
+        c.setId(rs.getLong("id"));
+        c.setNome(rs.getString("nome"));
+        c.setEmail(rs.getString("email"));
+        c.setSenhaHash(rs.getString("senha_hash"));
+        c.setRole(rs.getString("role"));
+        c.setAtivo(rs.getBoolean("ativo"));
+        c.setDataCadastro(rs.getTimestamp("data_cadastro").toLocalDateTime());
+        c.setDataAtualizacao(rs.getTimestamp("data_atualizacao").toLocalDateTime());
+        c.setDtype(rs.getString("dtype"));
+        c.setTelefone(rs.getString("telefone"));
+        return c;
+    };
+
+    private static final String INSERT_USUARIO_SQL = """
+            INSERT INTO usuario (nome, email, senha_hash, role, ativo, data_cadastro, data_atualizacao, dtype)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id
             """;
 
+    private static final String INSERT_CLIENTE_SQL = "INSERT INTO cliente (id, telefone) VALUES (?, ?)";
+
+    private static final String FIND_BY_ID_SQL = """
+            SELECT u.id, u.nome, u.email, u.senha_hash, u.role, u.ativo,
+                   u.data_cadastro, u.data_atualizacao, u.dtype, c.telefone
+            FROM usuario u JOIN cliente c ON u.id = c.id
+            WHERE u.id = ?
+            """;
+
+    private static final String FIND_ALL_SQL = """
+            SELECT u.id, u.nome, u.email, u.senha_hash, u.role, u.ativo,
+                   u.data_cadastro, u.data_atualizacao, u.dtype, c.telefone
+            FROM usuario u JOIN cliente c ON u.id = c.id
+            """;
+
+    private static final String UPDATE_USUARIO_SQL = """
+            UPDATE usuario SET nome = ?, email = ?, senha_hash = ?, role = ?, ativo = ?,
+                data_atualizacao = ?, dtype = ? WHERE id = ?
+            """;
+
+    private static final String UPDATE_CLIENTE_SQL = "UPDATE cliente SET telefone = ? WHERE id = ?";
+
+    private static final String DELETE_CLIENTE_SQL = "DELETE FROM cliente WHERE id = ?";
+
+    private static final String DELETE_USUARIO_SQL = "DELETE FROM usuario WHERE id = ?";
+
+    @Override
+    public void save(Cliente cliente) {
         cliente.onCreate();
+        cliente.setRole("CLIENTE");
+        cliente.setAtivo(true);
+        cliente.setDtype("CLIENTE");
 
         TransactionalDataAccess.executeInTransactionVoid(conn -> {
-            try (PreparedStatement stmt = conn.prepareStatement(
-                    sql, Statement.RETURN_GENERATED_KEYS)) {
-
+            try (PreparedStatement stmt = conn.prepareStatement(INSERT_USUARIO_SQL)) {
                 stmt.setString(1, cliente.getNome());
                 stmt.setString(2, cliente.getEmail());
-                stmt.setString(3, cliente.getSenha());
-                stmt.setString(4, cliente.getTelefone());
-                stmt.setObject(5, cliente.getDataCadastro());
-                stmt.setObject(6, cliente.getDataAtualizacao());
+                stmt.setString(3, cliente.getSenhaHash());
+                stmt.setString(4, cliente.getRole());
+                stmt.setBoolean(5, cliente.isAtivo());
+                stmt.setTimestamp(6, Timestamp.valueOf(cliente.getDataCadastro()));
+                stmt.setTimestamp(7, Timestamp.valueOf(cliente.getDataAtualizacao()));
+                stmt.setString(8, cliente.getDtype());
 
-                int affectedRows = stmt.executeUpdate();
-
-                if (affectedRows == 0) {
-                    throw new RuntimeException(
-                            "Falha ao salvar cliente: nenhuma linha afetada.");
-                }
-
-                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
-                    if (generatedKeys.next()) {
-                        cliente.setId(generatedKeys.getLong(1));
-                    } else {
-                        throw new RuntimeException(
-                                "Falha ao salvar cliente: ID não gerado.");
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        cliente.setId(rs.getLong("id"));
                     }
                 }
+            }
+
+            try (PreparedStatement stmt = conn.prepareStatement(INSERT_CLIENTE_SQL)) {
+                stmt.setLong(1, cliente.getId());
+                stmt.setString(2, cliente.getTelefone());
+                stmt.executeUpdate();
             }
         });
     }
 
     @Override
     public Cliente findById(Long id) {
-        String sql = "SELECT * FROM cliente WHERE id_cliente = ?";
-
         return TransactionalDataAccess.executeInTransaction(conn -> {
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            try (PreparedStatement stmt = conn.prepareStatement(FIND_BY_ID_SQL)) {
                 stmt.setLong(1, id);
                 try (ResultSet rs = stmt.executeQuery()) {
                     if (rs.next()) {
-                        return mapResultSetToCliente(rs);
+                        return CLIENTE_MAPPER.mapRow(rs);
                     }
                 }
             }
@@ -68,14 +110,13 @@ public class ClienteDAOImpl extends AbstractDAOImpl<Cliente> implements ClienteD
 
     @Override
     public List<Cliente> findAll() {
-        String sql = "SELECT * FROM cliente ORDER BY id_cliente";
-
         return TransactionalDataAccess.executeInTransaction(conn -> {
             List<Cliente> clientes = new ArrayList<>();
-            try (PreparedStatement stmt = conn.prepareStatement(sql);
-                 ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    clientes.add(mapResultSetToCliente(rs));
+            try (PreparedStatement stmt = conn.prepareStatement(FIND_ALL_SQL)) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        clientes.add(CLIENTE_MAPPER.mapRow(rs));
+                    }
                 }
             }
             return clientes;
@@ -84,82 +125,48 @@ public class ClienteDAOImpl extends AbstractDAOImpl<Cliente> implements ClienteD
 
     @Override
     public void update(Cliente cliente) {
-        String sql = """
-            UPDATE cliente
-            SET nome = ?, email = ?, senha_hash = ?, telefone = ?, data_atualizacao = ?
-            WHERE id_cliente = ?
-            """;
-
         cliente.onUpdate();
 
         TransactionalDataAccess.executeInTransactionVoid(conn -> {
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            try (PreparedStatement stmt = conn.prepareStatement(UPDATE_USUARIO_SQL)) {
                 stmt.setString(1, cliente.getNome());
                 stmt.setString(2, cliente.getEmail());
-                stmt.setString(3, cliente.getSenha());
-                stmt.setString(4, cliente.getTelefone());
-                stmt.setObject(5, cliente.getDataAtualizacao());
-                stmt.setLong(6, cliente.getId());
+                stmt.setString(3, cliente.getSenhaHash());
+                stmt.setString(4, cliente.getRole());
+                stmt.setBoolean(5, cliente.isAtivo());
+                stmt.setTimestamp(6, Timestamp.valueOf(cliente.getDataAtualizacao()));
+                stmt.setString(7, cliente.getDtype());
+                stmt.setLong(8, cliente.getId());
+                stmt.executeUpdate();
+            }
 
-                int affectedRows = stmt.executeUpdate();
-
-                if (affectedRows == 0) {
-                    throw new RuntimeException(
-                            "Falha ao atualizar cliente: nenhuma linha afetada. ID: "
-                                    + cliente.getId());
-                }
+            try (PreparedStatement stmt = conn.prepareStatement(UPDATE_CLIENTE_SQL)) {
+                stmt.setString(1, cliente.getTelefone());
+                stmt.setLong(2, cliente.getId());
+                stmt.executeUpdate();
             }
         });
     }
 
     @Override
     public void delete(Cliente cliente) {
-        String sql = "DELETE FROM cliente WHERE id_cliente = ?";
-
         TransactionalDataAccess.executeInTransactionVoid(conn -> {
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            try (PreparedStatement stmt = conn.prepareStatement(DELETE_CLIENTE_SQL)) {
                 stmt.setLong(1, cliente.getId());
-
-                int affectedRows = stmt.executeUpdate();
-
-                if (affectedRows == 0) {
-                    throw new RuntimeException(
-                            "Falha ao deletar cliente: nenhuma linha afetada. ID: "
-                                    + cliente.getId());
-                }
+                stmt.executeUpdate();
+            }
+            try (PreparedStatement stmt = conn.prepareStatement(DELETE_USUARIO_SQL)) {
+                stmt.setLong(1, cliente.getId());
+                stmt.executeUpdate();
             }
         });
     }
 
     @Override
     public void deleteAll() {
-        String sql = "DELETE FROM cliente";
-
         TransactionalDataAccess.executeInTransactionVoid(conn -> {
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.executeUpdate();
-            }
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM cliente")) { stmt.executeUpdate(); }
+            try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM usuario WHERE dtype = 'CLIENTE'")) { stmt.executeUpdate(); }
         });
-    }
-
-    private Cliente mapResultSetToCliente(ResultSet rs) throws SQLException {
-        Cliente cliente = new Cliente();
-        cliente.setId(rs.getLong("id_cliente"));
-        cliente.setNome(rs.getString("nome"));
-        cliente.setEmail(rs.getString("email"));
-        cliente.setSenha(rs.getString("senha_hash"));
-        cliente.setTelefone(rs.getString("telefone"));
-
-        Timestamp tsCadastro = rs.getTimestamp("data_cadastro");
-        if (tsCadastro != null) {
-            cliente.setDataCadastro(tsCadastro.toLocalDateTime());
-        }
-
-        Timestamp tsAtualizacao = rs.getTimestamp("data_atualizacao");
-        if (tsAtualizacao != null) {
-            cliente.setDataAtualizacao(tsAtualizacao.toLocalDateTime());
-        }
-
-        return cliente;
     }
 }
