@@ -1,7 +1,6 @@
 package br.edu.ifpb.es.daw.util;
 
 import io.github.cdimascio.dotenv.Dotenv;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -24,6 +23,14 @@ public class DatabaseConnection {
                     "Variáveis DB_URL, DB_USER e DB_PASSWORD não encontradas.\n" +
                             "Crie um arquivo .env na raiz do projeto (use .env.example como template)."
             );
+        }
+
+        // Garantir que prepareThreshold=0 esteja presente na URL.
+        // Necessário porque o Supabase usa PgBouncer em transaction mode (porta 6543),
+        // que não suporta server-side prepared statements do driver JDBC.
+        // Sem isso, ocorre erro "prepared statement S_1 already exists".
+        if (!url.contains("prepareThreshold=")) {
+            url += (url.contains("?") ? "&" : "?") + "prepareThreshold=0";
         }
 
         return DriverManager.getConnection(url, user, password);
