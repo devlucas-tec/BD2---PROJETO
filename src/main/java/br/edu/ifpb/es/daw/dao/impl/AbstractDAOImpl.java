@@ -1,20 +1,25 @@
 package br.edu.ifpb.es.daw.dao.impl;
 
 import br.edu.ifpb.es.daw.dao.DAO;
-import br.edu.ifpb.es.daw.util.DatabaseConnection;
-
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.List;
 
 /**
  * Classe base abstrata para DAOs JDBC.
- * Fornece o acesso à conexão com o banco.
- * Cada DAO concreto implementa seus próprios métodos CRUD com SQL específico.
+ *
+ * ⚠️ CONTRATO OBRIGATÓRIO:
+ * NENHUM DAO deve abrir Connection diretamente do DatabaseConnection.
+ * Todo acesso a dados DEVE passar por TransactionalDataAccess.
+ *
+ * Exemplo de uso correto:
+ *   TransactionalDataAccess.executeInTransactionVoid(conn -> {
+ *       try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+ *           // setar parâmetros...
+ *           stmt.executeUpdate();
+ *       }
+ *   });
+ *
+ * Isso garante que o contexto RLS (app.usuario_id, app.usuario_role)
+ * seja propagado antes de qualquer SQL.
  */
 public abstract class AbstractDAOImpl<T> implements DAO<T> {
-
-	protected Connection getConnection() throws SQLException {
-		return DatabaseConnection.getConnection();
-	}
+    // Sem getConnection() — DAOs usam TransactionalDataAccess
 }
