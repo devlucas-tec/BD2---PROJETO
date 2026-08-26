@@ -16,6 +16,10 @@ public class Produto {
 
     private BigDecimal preco;
 
+    private Long idVendedor;
+
+    private Long idCategoria;
+
     private LocalDateTime dataCadastro;
 
     private LocalDateTime dataAtualizacao;
@@ -72,6 +76,22 @@ public class Produto {
         this.preco = preco;
     }
 
+    public Long getIdVendedor() {
+        return idVendedor;
+    }
+
+    public void setIdVendedor(Long idVendedor) {
+        this.idVendedor = idVendedor;
+    }
+
+    public Long getIdCategoria() {
+        return idCategoria;
+    }
+
+    public void setIdCategoria(Long idCategoria) {
+        this.idCategoria = idCategoria;
+    }
+
     public LocalDateTime getDataCadastro() {
         return dataCadastro;
     }
@@ -106,7 +126,9 @@ public class Produto {
                 "id=" + id +
                 ", nome='" + nome + '\'' +
                 ", preco=" + preco +
+                ", estoque=" + estoque +
+                ", idVendedor=" + idVendedor +
+                ", idCategoria=" + idCategoria +
                 '}';
     }
-
 }
