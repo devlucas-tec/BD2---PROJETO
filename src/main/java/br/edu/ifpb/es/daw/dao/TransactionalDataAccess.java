@@ -24,7 +24,8 @@ import java.sql.SQLException;
  *
  * O uso de set_config(..., true) é OBRIGATÓRIO:
  * true = escopo LOCAL, atrelado à transação atual.
- * O setting nasce e morre dentro da mesma transação.
+ * O VALOR do setting nasce e morre dentro da mesma transação, mas o
+ * placeholder do GUC sobrevive no backend (ver setRlsContext abaixo).
  * Isso é necessário porque o Supabase usa PgBouncer em
  * transaction mode (porta 6543), que reatribui conexões
  * entre transações — settings de sessão (false) se perderiam.
@@ -93,8 +94,17 @@ public class TransactionalDataAccess {
      *
      * Usa set_config(..., true) = escopo LOCAL, atrelado à transação atual.
      *
-     * Se o contexto for anônimo (null), NÃO seta nada — as policies de RLS
-     * devem tratar current_setting('app.usuario_id', true) retornando NULL.
+     * Se o contexto for anônimo (null), NÃO seta nada.
+     *
+     * ATENÇÃO: não setar nada NÃO significa que o Postgres verá NULL.
+     * Uma vez que set_config cria o placeholder do GUC naquele backend, o
+     * valor de reset dele passa a ser STRING VAZIA, e o pooler reusa
+     * backends entre transações. Uma requisição anônima que caia num backend
+     * já usado por uma autenticada lê '' — não NULL.
+     *
+     * Por isso as policies usam NULLIF(current_setting(...), '') antes do
+     * cast: sem ele, ''::bigint levanta 22P02 em vez de negar o acesso.
+     * Ver src/main/sql/04_fix_rls_identidade.sql.
      */
     private static void setRlsContext(Connection conn) throws SQLException {
         TenantContext.TenantInfo info = TenantContext.get();

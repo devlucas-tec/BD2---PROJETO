@@ -23,8 +23,11 @@ import java.util.function.Supplier;
  * REQUISIÇÕES ANÔNIMAS:
  * Usar executeAnonymous(). O TenantContext permanece null.
  * O TransactionalDataAccess detecta null e NÃO executa set_config.
- * As policies de RLS devem tratar current_setting('app.usuario_id', true)
- * retornando NULL.
+ *
+ * Isso NÃO garante que o Postgres veja NULL: sob o pooler o backend pode
+ * ter sido usado antes por uma requisição autenticada, e o GUC é herdado
+ * como string vazia. As policies tratam esse caso com
+ * NULLIF(current_setting(...), '') antes do cast.
  *
  * TODO (issue futura): Adicionar método que aceita token JWT string,
  * valida e extrai usuarioId + role automaticamente:
