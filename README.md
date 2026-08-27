@@ -124,9 +124,9 @@ DB_PASSWORD=sua_senha_aqui
 
 ---
 
-## 📦 Camada de Catálogo (`categoria` e `produto`)
+## 📦 Camada de Catálogo (`categoria`, `produto`, `cupom`, `avaliacao`)
 
-Os DAOs de catálogo (`CategoriaDAOImpl` e `ProdutoDAOImpl`) seguem o mesmo contrato dos demais: todo SQL passa por `TransactionalDataAccess`, então cada operação carrega o contexto RLS da requisição.
+Os DAOs de catálogo seguem o mesmo contrato dos demais: todo SQL passa por `TransactionalDataAccess`, então cada operação carrega o contexto RLS da requisição.
 
 ### Operações disponíveis
 
@@ -138,8 +138,34 @@ Os DAOs de catálogo (`CategoriaDAOImpl` e `ProdutoDAOImpl`) seguem o mesmo cont
 | `ProdutoDAO` | `findByVendedor(Long)` / `findByCategoria(Long)` | Filtram pela FK, com a `Categoria` já carregada. |
 | `ProdutoDAO` | `atualizarEstoque(Long, int)` | Devolve `boolean`: `false` quando o RLS nega ou o produto não existe. |
 | `ProdutoDAO` | `carregarVendedor(Produto)` | Materializa o `Vendedor` sob demanda (ver abaixo). |
+| `CupomDAO` | CRUD | Escrita exige `ADMIN`; leitura filtrada pelo RLS (ver tabela de policies). |
+| `CupomDAO` | `findByCodigo(String)` | Chave natural (`cupom.codigo` é `UNIQUE`). O resultado **depende do papel**. |
+| `CupomDAO` | `findValidoByCodigo(String)` / `findValidos()` | Só cupom utilizável, **independentemente do papel** (ver abaixo). |
+| `CupomDAO` | `isExpirado(Cupom)` | Compara com `CURRENT_DATE` — a data do banco, não a da aplicação. |
+| `AvaliacaoDAO` | CRUD | Leitura pública; escrita só do autor ou `ADMIN`. |
+| `AvaliacaoDAO` | `findByProduto(Long)` / `findByCliente(Long)` | Filtram pela FK, mais recentes primeiro. |
+| `AvaliacaoDAO` | `mediaNotasPorProduto(Long)` | `OptionalDouble` — vazio distingue "sem avaliações" de "média zero". |
+| `AvaliacaoDAO` | `contarPorProduto(Long)` | Par natural da média: média sem contagem não diz nada sobre confiança. |
 
 > `atualizarEstoque` devolve `boolean` justamente porque o RLS nega **em silêncio** no `UPDATE`: quando a linha não é do vendedor autenticado, o comando afeta 0 linhas em vez de levantar erro. O row count é o que expõe isso para a aplicação.
+
+### Validação de cupom: por que o RLS não basta
+
+A policy `cupom_select` já esconde cupom expirado/inativo de quem não é `ADMIN`. É tentador concluir que "se `findByCodigo` devolveu algo, o cupom vale" — e isso está errado por dois motivos:
+
+1. **Para `ADMIN` a policy é `USING (true)`**: ele enxerga cupom vencido normalmente. Uma rotina administrativa que aplicasse desconto via `findByCodigo` aceitaria cupom expirado sem reclamar.
+2. **RLS é controle de acesso, não regra de negócio.** Amarrar a validade do cupom à visibilidade faz com que qualquer ajuste futuro na policy mude silenciosamente o comportamento do checkout.
+
+Por isso a validade é explícita e independente do papel: `findValidoByCodigo` e `findValidos` aplicam `status = 'ATIVO' AND data_expiracao >= CURRENT_DATE` no próprio SQL. É o método que a regra de negócio deve usar na hora de aplicar um desconto.
+
+Todos usam `CURRENT_DATE` — a data do **banco**, não `LocalDate.now()`. O servidor de aplicação e o Postgres podem divergir em fuso ou em drift de relógio, e é a data do banco que as policies enxergam.
+
+### `data_avaliacao` é preenchida explicitamente no `INSERT`
+
+A coluna tem `DEFAULT now()`, então omiti-la funcionaria. `AvaliacaoDAOImpl` passa o valor mesmo assim, por dois motivos:
+
+* `now()` é o relógio do **servidor de banco**. Deixar o default decidir espalha duas fontes de tempo pelo sistema (o Postgres aqui, `LocalDateTime.now()` em `Produto` e `Usuario`), e elas divergem em fuso e em drift.
+* O objeto em memória ficaria com `dataAvaliacao` nulo depois do `save`, já que o valor teria nascido no banco. Quem chamou precisaria de um `findById` só para saber quando a própria avaliação foi criada.
 
 ### Estratégia de carga do `RowMapper` de `Produto`
 
@@ -173,7 +199,15 @@ java -cp target/crud-jpa-template-0.0.1-SNAPSHOT.jar br.edu.ifpb.es.daw.main.Mai
 java -cp target/crud-jpa-template-0.0.1-SNAPSHOT.jar br.edu.ifpb.es.daw.main.MainProdutoSave
 ```
 
-`MainProdutoSave` monta dois vendedores e uma categoria, exercita cada operação da issue #8 sob identidades diferentes (dono, vendedor concorrente e anônimo) e remove tudo que criou ao final.
+```bash
+java -cp target/crud-jpa-template-0.0.1-SNAPSHOT.jar br.edu.ifpb.es.daw.main.MainCupomSave
+```
+
+```bash
+java -cp target/crud-jpa-template-0.0.1-SNAPSHOT.jar br.edu.ifpb.es.daw.main.MainAvaliacaoSave
+```
+
+Cada um monta o próprio cenário, exercita as operações sob identidades diferentes — dono, terceiro e anônimo — e remove tudo que criou ao final. `MainCupomSave` é o que mostra na prática a diferença entre `findByCodigo` (varia com o papel) e `findValidoByCodigo` (não varia).
 
 ---
 
@@ -194,9 +228,13 @@ Os testes conectam no banco como `app_ecommerce` — uma role **sem** `BYPASSRLS
 | Classe | Cobre |
 | :--- | :--- |
 | `RlsContextIntegrationTest` | Propagação de `app.usuario_id` / `app.usuario_role` por transação (issue #3). |
-| `CupomAvaliacaoRlsIntegrationTest` | Policies de `cupom` e `avaliacao` (issue #9), incluindo os dois critérios de aceite. |
+| `CatalogoDaoIntegrationTest` | DAOs de `categoria` e `produto` e a estratégia de carga do `RowMapper` (issue #8). |
+| `CupomAvaliacaoRlsIntegrationTest` | Policies de `cupom` e `avaliacao` em SQL cru (issue #9), incluindo os dois critérios de aceite. |
+| `CupomAvaliacaoDaoIntegrationTest` | DAOs de `cupom` e `avaliacao` (issue #10): mapeamento, agregação, carimbo de data e comportamento sob cada identidade. |
 
 Cada classe é **pulada** (não quebrada) quando falta o `.env` na raiz ou quando as tabelas que ela testa ainda não foram criadas.
+
+> ⚠️ **Mergear o PR não aplica o DDL.** Os scripts de `src/main/sql/` precisam ser executados no SQL Editor do Supabase. Enquanto isso não acontece, os testes das tabelas correspondentes ficam pulados e o build passa verde sem ter verificado nada — confira a contagem de testes, não só o `BUILD SUCCESS`.
 
 ---
 
