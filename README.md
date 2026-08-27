@@ -79,6 +79,10 @@ Execute os scripts no **SQL Editor** rigorosamente na ordem numérica:
    * Define as políticas de RLS para catálogo (leitura pública / vitrine; escrita restrita a vendedores donos ou admins).
 4. `src/main/sql/04_fix_rls_identidade.sql`
    * Aplica correção de compatibilidade com o pooler do Supabase utilizando `NULLIF(..., '')` nas políticas de identidade.
+5. `src/main/sql/05_ddl_rls_cupom_avaliacao.sql`
+   * Cria sequências, tabelas e policies de `cupom` e `avaliacao` (catálogo restrito de cupons; avaliações de leitura pública assinadas pelo autor) e concede permissões.
+
+> **⚠️ Sobre os blocos de validação:** os scripts terminam com um bloco `DO $$` que testa as próprias policies. Ele é **pulado de propósito** quando executado pelo SQL Editor, porque o usuário `postgres` do Supabase tem `BYPASSRLS` e as policies nem chegam a ser avaliadas para ele. A validação efetiva do RLS está nos testes de integração, que conectam como `app_ecommerce` (ver seção de Testes).
 
 ### 3. Configurar o Arquivo `.env`
 Copie o template `.env.example` para `.env` na raiz do projeto:
@@ -110,6 +114,13 @@ DB_PASSWORD=sua_senha_aqui
 | **`categoria`** | `INSERT` / `UPDATE` / `DELETE` | Exclusivo para usuários com papel `ADMIN`. |
 | **`produto`** | `SELECT` | Público (vitrine acessível por qualquer sessão/anônimo). |
 | **`produto`** | `INSERT` / `UPDATE` / `DELETE` | Exclusivo do vendedor dono (`id_vendedor = app.usuario_id`) ou `ADMIN`. |
+| **`cupom`** | `SELECT` | `ADMIN` vê tudo; demais papéis (e anônimo) só veem cupom **utilizável**: `status = 'ATIVO'` **e** `data_expiracao >= CURRENT_DATE`. |
+| **`cupom`** | `INSERT` / `UPDATE` / `DELETE` | Exclusivo para usuários com papel `ADMIN`. |
+| **`avaliacao`** | `SELECT` | Público (faz parte da vitrine do produto). |
+| **`avaliacao`** | `INSERT` | Só em nome próprio (`id_cliente = app.usuario_id`) ou `ADMIN`. |
+| **`avaliacao`** | `UPDATE` / `DELETE` | Exclusivo do autor (`id_cliente = app.usuario_id`) ou `ADMIN`. |
+
+> **Por que `cupom` checa a data e não só o status:** a tarefa da issue #9 fala em "só veem `status = 'ATIVO'`", mas o critério de aceite exige que **cupom expirado** também não apareça. Um cupom `ATIVO` com `data_expiracao` no passado passaria pelo filtro de status e continuaria visível — por isso a policy exige as duas condições.
 
 ---
 
@@ -177,6 +188,15 @@ Para rodar os testes de integração de contexto e RLS:
 ```bash
 ./mvnw test
 ```
+
+Os testes conectam no banco como `app_ecommerce` — uma role **sem** `BYPASSRLS`. Isso é o que dá valor às asserções: se a role tivesse `BYPASSRLS`, as policies não seriam avaliadas e os testes que afirmam *negativa* de acesso passariam por engano.
+
+| Classe | Cobre |
+| :--- | :--- |
+| `RlsContextIntegrationTest` | Propagação de `app.usuario_id` / `app.usuario_role` por transação (issue #3). |
+| `CupomAvaliacaoRlsIntegrationTest` | Policies de `cupom` e `avaliacao` (issue #9), incluindo os dois critérios de aceite. |
+
+Cada classe é **pulada** (não quebrada) quando falta o `.env` na raiz ou quando as tabelas que ela testa ainda não foram criadas.
 
 ---
 
