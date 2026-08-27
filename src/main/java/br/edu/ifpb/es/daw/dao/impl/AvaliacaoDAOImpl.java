@@ -8,6 +8,7 @@ import br.edu.ifpb.es.daw.entities.Avaliacao;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.OptionalDouble;
@@ -94,6 +95,12 @@ public class AvaliacaoDAOImpl extends AbstractDAOImpl<Avaliacao> implements Aval
     @Override
     public void save(Avaliacao avaliacao) {
         avaliacao.onCreate();
+        // LocalDateTime tem precisão de nanossegundos; TIMESTAMP do PostgreSQL
+        // guarda microssegundos e ARREDONDA o resto (medido: .337921700 vira
+        // .337922). Sem truncar aqui, o objeto em memória sairia do save com
+        // um instante que não existe na linha gravada — justamente o contrário
+        // do que preencher data_avaliacao explicitamente pretende garantir.
+        avaliacao.setDataAvaliacao(avaliacao.getDataAvaliacao().truncatedTo(ChronoUnit.MICROS));
 
         TransactionalDataAccess.executeInTransactionVoid(conn -> {
             try (PreparedStatement stmt = conn.prepareStatement(INSERT_SQL)) {

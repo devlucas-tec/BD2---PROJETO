@@ -191,11 +191,29 @@ class CupomAvaliacaoDaoIntegrationTest {
         assertFalse(JwtAuthenticationFilter.executeAuthenticated(ID_ADMIN, "ADMIN",
                 () -> CUPOM_DAO.isExpirado(cupomValido)));
 
-        // Cupom que vence hoje ainda vale (o predicado é >= CURRENT_DATE)
-        Cupom venceHoje = novoCupom("irrelevante", StatusCupom.ATIVO, 0);
+        // Cupom que vence hoje ainda vale (o predicado é >= CURRENT_DATE).
+        //
+        // "Hoje" precisa vir do BANCO, não de LocalDate.now(): medido neste
+        // ambiente, o Postgres roda em UTC e a aplicação em America/Fortaleza
+        // (UTC-3), então entre 21h e a meia-noite locais o banco já virou o
+        // dia. Montar o cupom com a data da aplicação faria este teste falhar
+        // à noite e passar de manhã — e é exatamente essa divergência que
+        // isExpirado existe para resolver.
+        Cupom venceHoje = new Cupom();
+        venceHoje.setCodigo("irrelevante");
+        venceHoje.setValorDesconto(new BigDecimal("10.00"));
+        venceHoje.setDataExpiracao(dataDoBanco());
         assertFalse(JwtAuthenticationFilter.executeAuthenticated(ID_ADMIN, "ADMIN",
                         () -> CUPOM_DAO.isExpirado(venceHoje)),
-                "cupom que expira hoje ainda é utilizável");
+                "cupom que expira hoje (data do banco) ainda é utilizável");
+
+        Cupom venceuOntem = new Cupom();
+        venceuOntem.setCodigo("irrelevante");
+        venceuOntem.setValorDesconto(new BigDecimal("10.00"));
+        venceuOntem.setDataExpiracao(dataDoBanco().minusDays(1));
+        assertTrue(JwtAuthenticationFilter.executeAuthenticated(ID_ADMIN, "ADMIN",
+                        () -> CUPOM_DAO.isExpirado(venceuOntem)),
+                "um dia antes da data do banco já está expirado");
     }
 
     @Test
@@ -410,11 +428,29 @@ class CupomAvaliacaoDaoIntegrationTest {
         }
     }
 
+    /**
+     * CURRENT_DATE do banco. Necessário porque o Postgres do Supabase roda em
+     * UTC e a aplicação em America/Fortaleza — as duas datas divergem por
+     * algumas horas todo dia, e é a do banco que as policies enxergam.
+     */
+    private static LocalDate dataDoBanco() {
+        return TransactionalDataAccess.executeInTransaction(conn -> {
+            try (PreparedStatement stmt = conn.prepareStatement("SELECT CURRENT_DATE");
+                 ResultSet rs = stmt.executeQuery()) {
+                rs.next();
+                return rs.getDate(1).toLocalDate();
+            }
+        });
+    }
+
     private static Cupom novoCupom(String codigo, StatusCupom status, int diasAteExpirar) {
         Cupom c = new Cupom();
         c.setCodigo(codigo);
         c.setValorDesconto(new BigDecimal("10.00"));
-        c.setDataExpiracao(LocalDate.now().plusDays(diasAteExpirar));
+        // Ancorado na data do BANCO, não na da aplicação: ver dataDoBanco().
+        // Com LocalDate.now() a fixture ficaria a um dia de distância da
+        // referência que as policies usam, e o teste oscilaria com a hora.
+        c.setDataExpiracao(dataDoBanco().plusDays(diasAteExpirar));
         c.setStatus(status);
         return c;
     }
