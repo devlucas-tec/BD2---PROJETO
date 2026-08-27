@@ -24,6 +24,26 @@ public class Produto {
 
     private LocalDateTime dataAtualizacao;
 
+    /**
+     * Categoria dona do produto, materializada pelo RowMapper (issue #8).
+     *
+     * Sempre vem preenchida nas consultas do ProdutoDAO: categoria é vitrine
+     * pública no RLS, então o JOIN nunca perde linha.
+     */
+    private Categoria categoria;
+
+    /**
+     * Vendedor dono do produto, carregado SOB DEMANDA (issue #8).
+     *
+     * Fica null nas consultas do ProdutoDAO. Para materializá-lo, chame
+     * ProdutoDAO.carregarVendedor(produto) — e mesmo assim ele continua null
+     * quando o RLS de vendedor/usuario nega a leitura para o contexto atual
+     * (só o próprio vendedor ou um ADMIN enxergam esses dados).
+     *
+     * O porquê dessa assimetria está documentado em ProdutoDAOImpl.
+     */
+    private Vendedor vendedor;
+
     public void onCreate() {
         this.dataCadastro = LocalDateTime.now();
         this.dataAtualizacao = LocalDateTime.now();
@@ -92,6 +112,34 @@ public class Produto {
         this.idCategoria = idCategoria;
     }
 
+    public Categoria getCategoria() {
+        return categoria;
+    }
+
+    /**
+     * A FK (idCategoria) continua sendo o que o DAO grava. Manter as duas
+     * pontas em sincronia aqui evita que um save() feito a partir do objeto
+     * associado escreva id_categoria = null.
+     */
+    public void setCategoria(Categoria categoria) {
+        this.categoria = categoria;
+        if (categoria != null && categoria.getId() != null) {
+            this.idCategoria = categoria.getId();
+        }
+    }
+
+    public Vendedor getVendedor() {
+        return vendedor;
+    }
+
+    /** Mesmo contrato de setCategoria: mantém a FK idVendedor em sincronia. */
+    public void setVendedor(Vendedor vendedor) {
+        this.vendedor = vendedor;
+        if (vendedor != null && vendedor.getId() != null) {
+            this.idVendedor = vendedor.getId();
+        }
+    }
+
     public LocalDateTime getDataCadastro() {
         return dataCadastro;
     }
@@ -129,6 +177,8 @@ public class Produto {
                 ", estoque=" + estoque +
                 ", idVendedor=" + idVendedor +
                 ", idCategoria=" + idCategoria +
+                ", categoria=" + (categoria != null ? categoria.getNome() : "<nao carregada>") +
+                ", vendedor=" + (vendedor != null ? vendedor.getRazaoSocial() : "<nao carregado>") +
                 '}';
     }
 }

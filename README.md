@@ -113,6 +113,59 @@ DB_PASSWORD=sua_senha_aqui
 
 ---
 
+## 📦 Camada de Catálogo (`categoria` e `produto`)
+
+Os DAOs de catálogo (`CategoriaDAOImpl` e `ProdutoDAOImpl`) seguem o mesmo contrato dos demais: todo SQL passa por `TransactionalDataAccess`, então cada operação carrega o contexto RLS da requisição.
+
+### Operações disponíveis
+
+| DAO | Método | Observação |
+| :--- | :--- | :--- |
+| `CategoriaDAO` | CRUD (`save`, `findById`, `findAll`, `update`, `delete`, `deleteAll`) | Leitura pública; escrita exige `ADMIN`. |
+| `CategoriaDAO` | `findByNome(String)` | Busca pela chave natural (`categoria.nome` é `UNIQUE`). |
+| `ProdutoDAO` | CRUD | Leitura pública; escrita restrita ao vendedor dono ou `ADMIN`. |
+| `ProdutoDAO` | `findByVendedor(Long)` / `findByCategoria(Long)` | Filtram pela FK, com a `Categoria` já carregada. |
+| `ProdutoDAO` | `atualizarEstoque(Long, int)` | Devolve `boolean`: `false` quando o RLS nega ou o produto não existe. |
+| `ProdutoDAO` | `carregarVendedor(Produto)` | Materializa o `Vendedor` sob demanda (ver abaixo). |
+
+> `atualizarEstoque` devolve `boolean` justamente porque o RLS nega **em silêncio** no `UPDATE`: quando a linha não é do vendedor autenticado, o comando afeta 0 linhas em vez de levantar erro. O row count é o que expõe isso para a aplicação.
+
+### Estratégia de carga do `RowMapper` de `Produto`
+
+A escolha entre **JOIN único** e **carga sob demanda** não é a mesma para as duas associações — quem decide é o RLS, não a preferência de estilo:
+
+* **`Categoria` → JOIN único (eager, sempre).** A policy `categoria_select` é `USING (true)` e `produto.id_categoria` é `NOT NULL` com FK `ON DELETE RESTRICT`. Somando as duas coisas, o `INNER JOIN` nunca descarta um produto nem devolve categoria vazia, em nenhum contexto de tenant. Custo: três colunas a mais por linha, contra uma query extra por produto (N+1) se fosse sob demanda — o JOIN ganha com folga na listagem de vitrine, que é o caso de uso dominante.
+
+* **`Vendedor` → carga sob demanda (lazy).** Os dados do vendedor moram em `vendedor JOIN usuario`, ambas sob `FORCE ROW LEVEL SECURITY` com policy restritiva (`id = app.usuario_id OR app.usuario_role = 'ADMIN'`). Um `INNER JOIN` até `usuario` dentro do `findAll()` seria **filtrado pelo RLS e zeraria a vitrine**: a sessão anônima e o vendedor concorrente passariam a enxergar zero produtos, e o catálogo público deixaria de existir. Trocar por `LEFT JOIN` devolveria as linhas, mas com todas as colunas do vendedor nulas — pagando o custo do JOIN para não trazer dado nenhum na maioria das requisições. Por isso o vendedor fica fora do `SELECT` do catálogo e é materializado por `carregarVendedor()`, que reusa o `VendedorDAO` e volta a passar pelo RLS.
+
+Contrapartida assumida: `carregarVendedor()` aplicado a uma lista é N+1. É aceitável porque o caminho quente (vitrine) não carrega vendedor, e o caminho que carrega (painel da loja) opera sobre os produtos de um único vendedor. Se virar gargalo, a saída é uma carga em lote (`id IN (...)`), não trocar a estratégia por JOIN.
+
+A FK crua (`Produto.idVendedor`) está sempre preenchida, então nada no domínio depende de o objeto `Vendedor` ter sido materializado.
+
+### Executando os cenários de catálogo
+
+O projeto não tem camada HTTP desde a issue #2 (remoção de Spring/JPA). O equivalente a "o endpoint responde" são as classes de `main/`: cada bloco é a requisição que um controller faria, executada pelo `JwtAuthenticationFilter` — que é quem preenche o `TenantContext` e, portanto, quem determina o que o RLS vai permitir.
+
+Empacote uma vez (o `maven-shade-plugin` já inclui driver e dotenv no jar):
+
+```bash
+./mvnw -q clean package -DskipTests
+```
+
+E rode o cenário desejado:
+
+```bash
+java -cp target/crud-jpa-template-0.0.1-SNAPSHOT.jar br.edu.ifpb.es.daw.main.MainCategoriaSave
+```
+
+```bash
+java -cp target/crud-jpa-template-0.0.1-SNAPSHOT.jar br.edu.ifpb.es.daw.main.MainProdutoSave
+```
+
+`MainProdutoSave` monta dois vendedores e uma categoria, exercita cada operação da issue #8 sob identidades diferentes (dono, vendedor concorrente e anônimo) e remove tudo que criou ao final.
+
+---
+
 ## 🧪 Testes e Compilação
 
 Para compilar o projeto:
