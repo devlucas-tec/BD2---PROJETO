@@ -18,6 +18,17 @@ public class Avaliacao {
 
     private LocalDateTime dataAvaliacao;
 
+    /**
+     * Autor da avaliação (FK para cliente.id).
+     *
+     * É esta coluna que a policy avaliacao_insert compara com app.usuario_id
+     * para impedir que um cliente assine avaliação em nome de outro.
+     */
+    private Long idCliente;
+
+    /** Produto avaliado (FK para produto.id_produto). */
+    private Long idProduto;
+
 
     public void onCreate() {
         this.dataAvaliacao = LocalDateTime.now();
@@ -58,6 +69,22 @@ public class Avaliacao {
         this.dataAvaliacao = dataAvaliacao;
     }
 
+    public Long getIdCliente() {
+        return idCliente;
+    }
+
+    public void setIdCliente(Long idCliente) {
+        this.idCliente = idCliente;
+    }
+
+    public Long getIdProduto() {
+        return idProduto;
+    }
+
+    public void setIdProduto(Long idProduto) {
+        this.idProduto = idProduto;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -77,6 +104,8 @@ public class Avaliacao {
                 ", nota=" + nota +
                 ", comentario='" + comentario + '\'' +
                 ", dataAvaliacao=" + dataAvaliacao +
+                ", idCliente=" + idCliente +
+                ", idProduto=" + idProduto +
                 '}';
     }
 
