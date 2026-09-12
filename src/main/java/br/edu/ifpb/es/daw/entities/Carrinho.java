@@ -11,6 +11,12 @@ public class Carrinho {
 
     private LocalDate dataAtualizacao;
 
+    /**
+     * FK para usuario.id (o "dono" do carrinho). NOT NULL + UNIQUE no DDL:
+     * cada cliente tem no máximo um carrinho (ver 06_ddl_carrinho.sql).
+     */
+    private Long idCliente;
+
     public void onCreate() {
         this.dataCriacao = LocalDate.now();
         this.dataAtualizacao = LocalDate.now();
@@ -47,16 +53,25 @@ public class Carrinho {
         this.dataAtualizacao = dataAtualizacao;
     }
 
+    public Long getIdCliente() {
+        return idCliente;
+    }
+
+    public void setIdCliente(Long idCliente) {
+        this.idCliente = idCliente;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         Carrinho carrinho = (Carrinho) o;
-        return Objects.equals(id, carrinho.id) && Objects.equals(dataCriacao, carrinho.dataCriacao) && Objects.equals(dataAtualizacao, carrinho.dataAtualizacao);
+        return Objects.equals(id, carrinho.id) && Objects.equals(dataCriacao, carrinho.dataCriacao)
+                && Objects.equals(dataAtualizacao, carrinho.dataAtualizacao) && Objects.equals(idCliente, carrinho.idCliente);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, dataCriacao, dataAtualizacao);
+        return Objects.hash(id, dataCriacao, dataAtualizacao, idCliente);
     }
 
     @Override
@@ -65,6 +80,7 @@ public class Carrinho {
                 "id=" + id +
                 ", dataCriacao=" + dataCriacao +
                 ", dataAtualizacao=" + dataAtualizacao +
+                ", idCliente=" + idCliente +
                 '}';
     }
 }
